@@ -1,0 +1,41 @@
+{
+  "name": "react-native-mqtt",
+  "version": "0.1.0",
+  "description": "A MQTT Client for React Native",
+  "main": "build/ReactNativeMqtt.js",
+  "types": "build/ReactNativeMqtt.d.ts",
+  "scripts": {
+    "build": "expo-module build",
+    "clean": "expo-module clean",
+    "lint": "expo-module lint",
+    "test": "expo-module test",
+    "prepare": "expo-module prepare",
+    "prepublishOnly": "expo-module prepublishOnly",
+    "expo-module": "expo-module",
+    "open:ios": "open -a \"Xcode\" example/ios",
+    "open:android": "open -a \"Android Studio\" example/android"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "react-native-mqtt",
+    "ReactNativeMqtt"
+  ],
+  "repository": "https://github.com/thorbenprimke/react-native-mqtt",
+  "bugs": {
+    "url": "https://github.com/thorbenprimke/react-native-mqtt/issues"
+  },
+  "author": "Thorben Primke <thorben@primke.com> (https://github.com/thorbenprimke)",
+  "license": "MIT",
+  "homepage": "https://github.com/thorbenprimke/react-native-mqtt#readme",
+  "dependencies": {},
+  "devDependencies": {
+    "expo-module-scripts": "^3.0.3",
+    "expo-modules-core": "^1.0.2"
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}
