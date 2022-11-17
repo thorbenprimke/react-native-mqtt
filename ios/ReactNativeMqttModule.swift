@@ -37,7 +37,7 @@ public class ReactNativeMqttModule: Module {
 
     Function("subscribeToTopic") { (topicId: String) -> Void in
         print("[MQTT] subscribing")
-        mqtt?.subscribe([(topicId, CocoaMQTTQoS.qos0)])
+        mqtt?.subscribe([(topicId, CocoaMQTTQoS.qos2)])
     }
       
     Function("cleanup") { () -> Void in
