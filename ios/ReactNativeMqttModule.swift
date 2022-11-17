@@ -1,4 +1,6 @@
 import ExpoModulesCore
+import CocoaMQTT
+
 
 public class ReactNativeMqttModule: Module {
   // Each module class must implement the definition function. The definition consists of components
@@ -10,35 +12,91 @@ public class ReactNativeMqttModule: Module {
     // The module will be accessible from `requireNativeModule('ReactNativeMqtt')` in JavaScript.
     Name("ReactNativeMqtt")
 
-    // Sets constant properties on the module. Can take a dictionary or a closure that returns a dictionary.
-    Constants([
-      "PI": Double.pi
-    ])
+    Events("onChangeConnectionState")
+    Events("onReceiveMessage")
 
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
+      Function("createAndConnectClient") { (
+        endPoint: String,
+        userName: String,
+        accessToken: String
+      ) -> Bool in
+        let websocket = CocoaMQTTWebSocket(uri: endPoint)
+        websocket.enableSSL = true
+        websocket.shouldConnectWithURIOnly = true
+        websocket.headers = [
+              "Authorization": "Bearer \(accessToken)",
+        ]
 
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      return "Hello world! 👋"
+        mqtt = CocoaMQTT(clientID: userName, host: "", socket: websocket)
+        mqtt?.willMessage = CocoaMQTTMessage(topic: "/will", string: "dieout")
+        mqtt?.keepAlive = 60
+        mqtt?.enableSSL = true
+        mqtt?.delegate = self
+        return mqtt?.connect() == true
     }
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { (value: String) in
-      // Send an event to JavaScript.
-      self.sendEvent("onChange", [
-        "value": value
-      ])
+    Function("subscribeToTopic") { (topicId: String) -> Void in
+        print("[MQTT] subscribing")
+        mqtt?.subscribe([(topicId, CocoaMQTTQoS.qos0)])
     }
-
-    // Enables the module to be used as a native view. Definition components that are accepted as part of the
-    // view definition: Prop, Events.
-    View(ReactNativeMqttView.self) {
-      // Defines a setter for the `name` prop.
-      Prop("name") { (view: ReactNativeMqttView, prop: String) in
-        print(prop)
-      }
+      
+    Function("cleanup") { () -> Void in
+        mqtt?.disconnect()
+        mqtt = nil
     }
   }
+
+  private var mqtt: CocoaMQTT?
+
+  enum ConnectionState: String, Enumerable {
+    case disconnected
+    case connected
+    case error
+  }
+}
+
+extension ReactNativeMqttModule: CocoaMQTTDelegate {
+    public func mqtt(_ mqtt: CocoaMQTT, didReceive trust: SecTrust, completionHandler: @escaping (Bool) -> Void) {
+        print(trust)
+        completionHandler(true)
+    }
+
+    public func mqtt(_ mqtt: CocoaMQTT, didConnectAck ack: CocoaMQTTConnAck) {
+        self.sendEvent("onChangeConnectionState", [
+            "connectionState": ConnectionState.connected.rawValue
+        ])
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didPublishMessage message: CocoaMQTTMessage, id: UInt16) {
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didPublishAck id: UInt16) {
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didReceiveMessage message: CocoaMQTTMessage, id: UInt16 ) {
+        print("[MQTT] didReceiveMessage \(message)")
+        self.sendEvent("onReceiveMessage", [
+            "message": String(bytes: message.payload, encoding: .utf8)
+        ])
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didSubscribeTopics success: NSDictionary, failed: [String]) {
+        print("[MQTT] didSubscribeTopics \(success), \(failed)")
+    }
+    
+    public func mqtt(_ mqtt: CocoaMQTT, didUnsubscribeTopics topics: [String]) {
+    }
+    
+    public func mqttDidPing(_ mqtt: CocoaMQTT) {
+    }
+    
+    public func mqttDidReceivePong(_ mqtt: CocoaMQTT) {
+    }
+    
+    public func mqttDidDisconnect(_ mqtt: CocoaMQTT, withError err: Error?) {
+        self.mqtt = nil
+        self.sendEvent("onChangeConnectionState", [
+            "connectionState": ConnectionState.disconnected.rawValue
+        ])
+    }
 }

@@ -1,29 +1,49 @@
-import { NativeModulesProxy, EventEmitter, Subscription } from 'expo-modules-core';
+import { EventEmitter, Subscription } from "expo-modules-core";
+import ReactNativeMQTTModule from "./ReactNativeMqttModule";
 
-// Import the native module. On web, it will be resolved to ReactNativeMqtt.web.ts
-// and on native platforms to ReactNativeMqtt.ts
-import ReactNativeMqtt from './ReactNativeMqttModule';
-import ReactNativeMqttView from './ReactNativeMqttView';
-import { ChangeEventPayload, ReactNativeMqttViewProps } from './ReactNativeMqtt.types';
+const emitter = new EventEmitter(ReactNativeMQTTModule);
 
-// Get the native constant value.
-export const PI = ReactNativeMqtt.PI;
+export type CONNECTION_STATE = "disconnected" | "connected" | "error";
 
-export function hello(): string {
-  return ReactNativeMqtt.hello();
+export type ConnectionStateChangeEvent = {
+  connectionState: CONNECTION_STATE;
+};
+
+export function addConnectionStateListener(
+  listener: (event: ConnectionStateChangeEvent) => void
+): Subscription {
+  return emitter.addListener<ConnectionStateChangeEvent>(
+    "onChangeConnectionState",
+    listener
+  );
 }
 
-export async function setValueAsync(value: string) {
-  return await ReactNativeMqtt.setValueAsync(value);
+export type MessageReceiveEvent = {
+  message: string;
+};
+
+export function addMessageReceiveListener(
+  listener: (event: MessageReceiveEvent) => void
+): Subscription {
+  return emitter.addListener<MessageReceiveEvent>("onReceiveMessage", listener);
 }
 
-// For now the events are not going through the JSI, so we have to use its bridge equivalent.
-// This will be fixed in the stable release and built into the module object.
-// Note: On web, NativeModulesProxy.ReactNativeMqtt is undefined, so we fall back to the directly imported implementation
-const emitter = new EventEmitter(NativeModulesProxy.ReactNativeMqtt ?? ReactNativeMqtt);
-
-export function addChangeListener(listener: (event: ChangeEventPayload) => void): Subscription {
-  return emitter.addListener<ChangeEventPayload>('onChange', listener);
+export function createAndConnectClient(
+  endPoint: String,
+  userName: String,
+  accessToken: String
+): boolean {
+  return ReactNativeMQTTModule.createAndConnectClient(
+    endPoint,
+    userName,
+    accessToken
+  );
 }
 
-export { ReactNativeMqttView, ReactNativeMqttViewProps, ChangeEventPayload };
+export function subscribeToTopic(topicId: String) {
+  ReactNativeMQTTModule.subscribeToTopic(topicId);
+}
+
+export function cleanup() {
+  ReactNativeMQTTModule.cleanup();
+}

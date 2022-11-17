@@ -1,9 +1,14 @@
-import { Subscription } from 'expo-modules-core';
-import ReactNativeMqttView from './ReactNativeMqttView';
-import { ChangeEventPayload, ReactNativeMqttViewProps } from './ReactNativeMqtt.types';
-export declare const PI: any;
-export declare function hello(): string;
-export declare function setValueAsync(value: string): Promise<any>;
-export declare function addChangeListener(listener: (event: ChangeEventPayload) => void): Subscription;
-export { ReactNativeMqttView, ReactNativeMqttViewProps, ChangeEventPayload };
+import { Subscription } from "expo-modules-core";
+export declare type CONNECTION_STATE = "disconnected" | "connected" | "error";
+export declare type ConnectionStateChangeEvent = {
+    connectionState: CONNECTION_STATE;
+};
+export declare function addConnectionStateListener(listener: (event: ConnectionStateChangeEvent) => void): Subscription;
+export declare type MessageReceiveEvent = {
+    message: string;
+};
+export declare function addMessageReceiveListener(listener: (event: MessageReceiveEvent) => void): Subscription;
+export declare function createAndConnectClient(endPoint: String, userName: String, accessToken: String): boolean;
+export declare function subscribeToTopic(topicId: String): void;
+export declare function cleanup(): void;
 //# sourceMappingURL=ReactNativeMqtt.d.ts.map

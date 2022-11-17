@@ -16,6 +16,10 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
+  s.dependency 'CocoaMQTT/WebSockets'
+  s.dependency 'Starscream'
+  s.dependency 'MqttCocoaAsyncSocket'
+  
 
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {

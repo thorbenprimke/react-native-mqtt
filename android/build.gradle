@@ -88,4 +88,7 @@ repositories {
 dependencies {
   implementation project(':expo-modules-core')
   implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${getKotlinVersion()}"
+
+  implementation 'androidx.legacy:legacy-support-v4:1.0.0'
+  implementation 'com.github.hannesa2:paho.mqtt.android:3.3.8'
 }
