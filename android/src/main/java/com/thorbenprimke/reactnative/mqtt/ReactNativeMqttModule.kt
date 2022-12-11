@@ -1,12 +1,9 @@
 package com.thorbenprimke.reactnative.mqtt
 
-import android.content.Context
-import android.content.Context.*
-import android.content.SharedPreferences
-import android.util.Log
 import androidx.core.os.bundleOf
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import expo.modules.kotlin.types.Enumerable
 import info.mqtt.android.service.MqttAndroidClient
 import java.util.Properties
 import org.eclipse.paho.client.mqttv3.IMqttActionListener
@@ -26,83 +23,18 @@ class ReactNativeMqttModule : Module() {
         // The module will be accessible from `requireNativeModule('ReactNativeMqtt')` in JavaScript.
         Name("ReactNativeMqtt")
 
-        Events("onMessageReceived")
+        Events("onChangeConnectionState", "onReceiveMessage")
 
-        Function("hello") {
-            return@Function "World"
+        Function("createAndConnectClient") { endPoint: String, userName: String, accessToken: String ->
+            return@Function createClientForEndpoint(endPoint, userName, accessToken);
+        }
+
+        Function("subscribeToTopic") { topicId: String ->
+            return@Function subscribeToTopic(topicId)
         }
 
         Function("cleanup") {
             this@ReactNativeMqttModule.cleanup()
-        }
-
-
-        Function("createClientForEndpoint") { endPoint: String, userName: String ->
-            return@Function createClientForEndpoint(endPoint, userName)
-        }
-
-        Function("subscribeToTopic") { topicId: String ->
-            Log.d("ReactNativeMqttModule", "connected: " + client?.isConnected)
-
-            Log.d("ReactNativeMqttModule", "setting callback")
-
-            client?.setCallback(object: MqttCallback {
-                override fun connectionLost(cause: Throwable?) {
-                    Log.d("ReactNativeMqttModule", "connection lost")
-                    Log.d("ReactNativeMqttModule", cause?.message ?: "no connection lost message")
-                }
-
-                override fun messageArrived(topic: String?, message: MqttMessage?) {
-                    Log.d("ReactNativeMqttModule", "got message")
-                    Log.d("ReactNativeMqttModule", String(message?.payload ?: "None".toByteArray()))
-                    this@ReactNativeMqttModule.sendEvent(
-                        "onMessageReceived",
-                        bundleOf(
-                            "topic" to (topic ?: "noTopic"),
-                            "message" to String(message?.payload ?: "None".toByteArray())
-                        )
-                    )
-                }
-
-                override fun deliveryComplete(token: IMqttDeliveryToken?) {
-                    Log.d("ReactNativeMqttModule", "delivery complete")
-                }
-            })
-            Log.d("ReactNativeMqttModule", "connecting")
-
-            client?.connect(
-                mqttConnectOptions,
-                null,
-                object : IMqttActionListener {
-                    override fun onSuccess(asyncActionToken: IMqttToken?) {
-                        Log.d("ReactNativeMqttModule", "connected")
-                        client?.subscribe(
-                            "testtopic/1",
-                            0,
-                            null,
-                            object : IMqttActionListener {
-                                override fun onSuccess(asyncActionToken: IMqttToken?) {
-                                    Log.d("ReactNativeMqttModule", "subscribed")
-                                }
-
-                                override fun onFailure(
-                                    asyncActionToken: IMqttToken?,
-                                    exception: Throwable?
-                                ) {
-                                    Log.d("ReactNativeMqttModule", "sub failure")
-
-                                }
-
-                            }
-                        )
-                    }
-
-                    override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
-                        Log.d("ReactNativeMqttModule", "connect failure")
-                        Log.d("ReactNativeMqttModule", exception?.message ?: "no message")
-                    }
-                }
-            )
         }
     }
 
@@ -110,43 +42,118 @@ class ReactNativeMqttModule : Module() {
         get() = requireNotNull(appContext.reactContext)
 
     private var client: MqttAndroidClient? = null
+    private var subscribedTopicId: String? = null
 
-    private fun createClientForEndpoint(endPoint: String, userName: String): Boolean {
-        Log.d("ReactNativeMqttModule", "client starting")
+    private fun createClientForEndpoint(endPoint: String, userName: String, accessToken: String): Boolean {
         if (client != null) {
             client?.disconnect()
             client = null
         }
         client = MqttAndroidClient(
             context = context,
-            serverURI = "ws://broker.mqttdashboard.com:8000",
-            clientId = "clientId-Ec4CtnQFd2" + System.currentTimeMillis().toString()
+            serverURI = endPoint,
+            clientId = userName,
         )
-        Log.d("ReactNativeMqttModule", "client created")
+        client?.setCallback(object: MqttCallback {
+            override fun connectionLost(cause: Throwable?) {
+                this@ReactNativeMqttModule.sendEvent(
+                    "onChangeConnectionState",
+                    bundleOf(
+                        "connectionState" to ConnectionState.DISCONNECTED.value
+                    )
+                )
+            }
+
+            override fun messageArrived(topic: String?, message: MqttMessage?) {
+                this@ReactNativeMqttModule.sendEvent(
+                    "onReceiveMessage",
+                    bundleOf(
+                        "message" to String(message?.payload ?: "None".toByteArray())
+                    )
+                )
+            }
+
+            override fun deliveryComplete(token: IMqttDeliveryToken?) {
+            }
+        })
+
+        mqttConnectOptions.customWebSocketHeaders = Properties().apply {
+            setProperty(
+                AUTHORIZATION_HEADER_NAME,
+                AUTHORIZATION_HEADER_VALUE_FORMAT_STR.format(accessToken)
+            )
+        }
+
+        client?.connect(
+            mqttConnectOptions,
+            null,
+            object : IMqttActionListener {
+                override fun onSuccess(asyncActionToken: IMqttToken?) {
+                    this@ReactNativeMqttModule.sendEvent(
+                        "onChangeConnectionState",
+                        bundleOf(
+                            "connectionState" to ConnectionState.CONNECTED.value
+                        )
+                    )
+                }
+
+                override fun onFailure(asyncActionToken: IMqttToken?, exception: Throwable?) {
+                    this@ReactNativeMqttModule.sendEvent(
+                        "onChangeConnectionState",
+                        bundleOf(
+                            "connectionState" to ConnectionState.ERROR.value
+                        )
+                    )
+                }
+            }
+        )
         return true
     }
 
+    private fun subscribeToTopic(topicId: String): Boolean {
+        subscribedTopicId = topicId
+        client?.subscribe(
+            topicId,
+            0,
+            null,
+            object : IMqttActionListener {
+                override fun onSuccess(asyncActionToken: IMqttToken?) {
+                    // TODO: Add an event for this
+                }
+
+                override fun onFailure(
+                    asyncActionToken: IMqttToken?,
+                    exception: Throwable?
+                ) {
+                    // TODO: Add an event for this
+                }
+            }
+        )
+        return true;
+    }
+
     private fun cleanup() {
-        Log.d("ReactNativeMqttModule", "cleanup starting")
         client?.let {
-            it.unsubscribe("testtopic/1")
+            subscribedTopicId?.let { topicId ->
+                it.unsubscribe(topicId)
+            }
             it.disconnect()
         }
         client = null
-        Log.d("ReactNativeMqttModule", "cleaned up")
     }
 
     private val mqttConnectOptions = MqttConnectOptions().apply {
         isAutomaticReconnect = true
         isCleanSession = false
-//        customWebSocketHeaders = Properties().apply {
-//            setProperty(
-//                AUTHORIZATION_HEADER_NAME,
-//                AUTHORIZATION_HEADER_VALUE_FORMAT_STR.formatOther(ApiAuthManager.getActiveAccessToken())
-//            )
-//            setProperty(USER_AGENT, ApiUtils.userAgentForHeaders)
-//        }
         mqttVersion = MqttConnectOptions.MQTT_VERSION_3_1_1
     }
-
 }
+
+enum class ConnectionState(val value: String) : Enumerable {
+    DISCONNECTED("disconnected"),
+    CONNECTED("connected"),
+    ERROR("error")
+}
+
+const val AUTHORIZATION_HEADER_NAME = "Authorization"
+const val AUTHORIZATION_HEADER_VALUE_FORMAT_STR = "Bearer %s"
